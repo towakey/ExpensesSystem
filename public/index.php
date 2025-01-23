@@ -166,14 +166,25 @@ $categoryData = json_encode($categorySummary);
                                 </thead>
                                 <tbody>
                                     <?php foreach ($monthlyTransactions as $transaction): ?>
+                                        <?php
+                                        // 金額を計算
+                                        $amount = $transaction['type'] === 'expense' 
+                                            ? ($transaction['price'] * $transaction['quantity'] - $transaction['discount_amount'] - $transaction['points_used'])
+                                            : $transaction['price'];
+                                        ?>
                                         <tr>
                                             <td><?= htmlspecialchars($transaction['date']) ?></td>
                                             <td><?= $transaction['type'] === 'expense' ? '支出' : '収入' ?></td>
-                                            <td>¥<?= number_format($transaction['amount']) ?></td>
+                                            <td class="<?= $transaction['type'] === 'expense' ? 'text-danger' : 'text-success' ?>">
+                                                ¥<?= number_format($amount) ?>
+                                            </td>
                                             <td>
                                                 <?php if ($transaction['type'] === 'expense'): ?>
                                                     <?= htmlspecialchars($transaction['store_name']) ?> -
                                                     <?= htmlspecialchars($transaction['goods_name']) ?>
+                                                    <?php if ($transaction['quantity'] > 1): ?>
+                                                        (x<?= $transaction['quantity'] ?>)
+                                                    <?php endif; ?>
                                                 <?php else: ?>
                                                     <?= htmlspecialchars($transaction['income_source_name']) ?>
                                                 <?php endif; ?>

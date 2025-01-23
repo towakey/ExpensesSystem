@@ -1,0 +1,13 @@
+{
+    "name": "towakey/expenses-system",
+    "description": "A household expenses management system",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "ExpensesSystem\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=7.4"
+    }
+}

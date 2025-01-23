@@ -1,54 +1,53 @@
 <?php
-require_once __DIR__ . '/../src/Database.php';
-require_once __DIR__ . '/../src/Auth.php';
-require_once __DIR__ . '/../src/Transaction.php';
-require_once __DIR__ . '/../src/Store.php';
+session_start();
+require_once __DIR__ . '/../vendor/autoload.php';
 
 use ExpensesSystem\Auth;
 use ExpensesSystem\Transaction;
 use ExpensesSystem\Store;
-use ExpensesSystem\Database;
+use ExpensesSystem\Category;
 
 $auth = new Auth();
-
 if (!$auth->isLoggedIn()) {
     header('Location: login.php');
     exit;
 }
 
-$userId = $auth->getCurrentUserId();
 $store = new Store();
-$db = Database::getInstance()->getConnection();
+$category = new Category();
+$transaction = new Transaction();
 
-$message = '';
-$error = '';
-
-// カテゴリ一覧を取得
-$stmt = $db->prepare("SELECT * FROM categories ORDER BY name");
-$stmt->execute();
-$categories = $stmt->fetchAll();
-
-// 店舗一覧を取得
+$userId = $auth->getCurrentUserId();
 $stores = $store->getUserStores($userId);
+$categories = $category->getAllCategories();
+$error = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $transaction = new Transaction();
-        $result = $transaction->addExpense(
+        // 必須項目のチェック
+        $requiredFields = ['items', 'date', 'category_id', 'store_id'];
+        foreach ($requiredFields as $field) {
+            if (!isset($_POST[$field]) || empty($_POST[$field])) {
+                throw new Exception($field . 'は必須項目です。');
+            }
+        }
+
+        $items = json_decode($_POST['items'], true);
+        if (!is_array($items) || empty($items)) {
+            throw new Exception('商品が選択されていません。');
+        }
+
+        $transaction->addExpense(
             $userId,
-            $_POST['amount'],
+            $items,
             $_POST['date'],
             $_POST['category_id'],
             $_POST['store_id'],
-            $_POST['goods_id'],
-            $_POST['discount_amount'] ?? 0,
-            $_POST['points_used'] ?? 0,
-            $_POST['memo'] ?? null
+            $_POST['memo'] ?? ''
         );
-        
-        if ($result) {
-            $message = '支出を登録しました。';
-        }
+
+        header('Location: index.php');
+        exit;
     } catch (Exception $e) {
         $error = $e->getMessage();
     }
@@ -119,81 +118,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php include 'includes/navbar.php'; ?>
 
     <div class="container mt-4">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="card bg-dark text-light">
-                    <div class="card-header">
-                        <h4 class="mb-0">支出登録</h4>
-                    </div>
-                    <div class="card-body">
-                        <?php if ($message): ?>
-                            <div class="alert alert-success"><?= htmlspecialchars($message) ?></div>
-                        <?php endif; ?>
-                        
-                        <?php if ($error): ?>
-                            <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
-                        <?php endif; ?>
+        <h1 class="mb-4">支出登録</h1>
 
-                        <form method="post" action="" id="expenseForm">
-                            <input type="hidden" name="store_id" id="store_id">
-                            <input type="hidden" name="goods_id" id="goods_id">
-                            <input type="hidden" name="category_id" id="category_id">
+        <?php if ($error): ?>
+            <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
+        <?php endif; ?>
 
-                            <div class="mb-3">
-                                <label class="form-label">店舗</label>
-                                <button type="button" class="btn btn-outline-light selection-button" id="storeButton" data-bs-toggle="modal" data-bs-target="#storeModal">
-                                    店舗を選択してください
-                                </button>
-                            </div>
+        <form method="post">
+            <input type="hidden" id="category_id" name="category_id" required>
+            <input type="hidden" id="store_id" name="store_id" required>
+            <input type="hidden" id="items" name="items" required>
 
-                            <div class="mb-3">
-                                <label class="form-label">商品</label>
-                                <button type="button" class="btn btn-outline-light selection-button" id="goodsButton" data-bs-toggle="modal" data-bs-target="#goodsModal" disabled>
-                                    商品を選択してください
-                                </button>
-                            </div>
+            <div class="mb-3">
+                <label for="date" class="form-label">日付</label>
+                <input type="date" class="form-control bg-dark text-light" id="date" name="date" 
+                       value="<?php echo date('Y-m-d'); ?>" required>
+            </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">カテゴリ</label>
-                                <button type="button" class="btn btn-outline-light selection-button" id="categoryButton" data-bs-toggle="modal" data-bs-target="#categoryModal">
-                                    カテゴリを選択してください
-                                </button>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">金額</label>
-                                <input type="number" class="form-control" name="amount" required>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">割引額</label>
-                                <input type="number" class="form-control" name="discount_amount" value="0">
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">ポイント使用額</label>
-                                <input type="number" class="form-control" name="points_used" value="0">
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">日付</label>
-                                <input type="date" class="form-control" name="date" value="<?= date('Y-m-d') ?>" required>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">メモ</label>
-                                <textarea class="form-control" name="memo"></textarea>
-                            </div>
-
-                            <div class="d-grid gap-2">
-                                <button type="submit" class="btn btn-primary">登録</button>
-                                <a href="index.php" class="btn btn-secondary">戻る</a>
-                            </div>
-                        </form>
-                    </div>
+            <div class="mb-3">
+                <label class="form-label">カテゴリ</label>
+                <div class="d-flex mb-2 align-items-center">
+                    <div id="selectedCategory" class="me-2">選択してください</div>
+                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#categoryModal">
+                        選択
+                    </button>
                 </div>
             </div>
-        </div>
+
+            <div class="mb-3">
+                <label class="form-label">店舗</label>
+                <div class="d-flex mb-2 align-items-center">
+                    <div id="selectedStoreName" class="me-2">選択してください</div>
+                    <button type="button" class="btn btn-outline-primary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#storeModal">
+                        選択
+                    </button>
+                    <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#addStoreModal">
+                        新規登録
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">商品</label>
+                <div class="d-flex mb-2">
+                    <button type="button" id="addGoodsButton" class="btn btn-outline-primary btn-sm me-2" 
+                            data-bs-toggle="modal" data-bs-target="#goodsModal" disabled>
+                        選択
+                    </button>
+                    <button type="button" id="registerGoodsButton" class="btn btn-outline-success btn-sm" 
+                            data-bs-toggle="modal" data-bs-target="#addGoodsModal" disabled>
+                        新規登録
+                    </button>
+                </div>
+                <div id="selectedItems"></div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">合計</label>
+                <div class="input-group">
+                    <span class="input-group-text">¥</span>
+                    <input type="text" class="form-control bg-dark text-light" id="totalAmount" name="total_amount" readonly>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="memo" class="form-label">メモ</label>
+                <textarea class="form-control bg-dark text-light" id="memo" name="memo" rows="3"></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">登録</button>
+        </form>
     </div>
 
     <!-- 店舗選択モーダル -->
@@ -205,18 +199,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="selection-grid" id="storeGrid">
-                        <?php foreach ($stores as $s): ?>
-                            <div class="selection-item" data-id="<?= $s['id'] ?>" data-name="<?= htmlspecialchars($s['name']) ?>">
-                                <i class="bi bi-shop"></i>
-                                <span><?= htmlspecialchars($s['name']) ?></span>
+                    <div class="row row-cols-1 row-cols-md-3 g-4" id="storeList">
+                        <?php foreach ($stores as $store): ?>
+                        <div class="col">
+                            <div class="card h-100 store-card bg-dark text-light" data-store-id="<?= htmlspecialchars($store['id']) ?>" data-store-name="<?= htmlspecialchars($store['name']) ?>">
+                                <div class="card-body">
+                                    <h5 class="card-title"><?= htmlspecialchars($store['name']) ?></h5>
+                                </div>
                             </div>
-                        <?php endforeach; ?>
-                        <div class="selection-item" data-id="new">
-                            <i class="bi bi-plus-lg"></i>
-                            <span>新規店舗</span>
                         </div>
+                        <?php endforeach; ?>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 店舗登録モーダル -->
+    <div class="modal fade" id="addStoreModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header">
+                    <h5 class="modal-title">新規店舗登録</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addStoreForm">
+                        <div class="mb-3">
+                            <label for="storeName" class="form-label">店舗名</label>
+                            <input type="text" class="form-control bg-dark text-light" id="storeName" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-primary" id="saveStoreButton">登録</button>
                 </div>
             </div>
         </div>
@@ -231,9 +248,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="selection-grid" id="goodsGrid">
-                        <!-- 商品は動的に読み込まれます -->
+                    <div id="goodsList" class="row row-cols-1 row-cols-md-3 g-4">
+                        <!-- 商品リストがここに動的に追加されます -->
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 商品登録モーダル -->
+    <div class="modal fade" id="addGoodsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header">
+                    <h5 class="modal-title">新規商品登録</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addGoodsForm">
+                        <div class="mb-3">
+                            <label for="goodsName" class="form-label">商品名</label>
+                            <input type="text" class="form-control bg-dark text-light" id="goodsName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="goodsPrice" class="form-label">価格</label>
+                            <input type="number" class="form-control bg-dark text-light" id="goodsPrice" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-primary" id="saveGoodsButton">登録</button>
                 </div>
             </div>
         </div>
@@ -248,11 +293,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="selection-grid" id="categoryGrid">
+                    <div class="row row-cols-2 row-cols-md-3 g-3">
                         <?php foreach ($categories as $category): ?>
-                            <div class="selection-item" data-id="<?= $category['id'] ?>" data-name="<?= htmlspecialchars($category['name']) ?>" data-icon="<?= $category['icon'] ?>">
-                                <i><?= $category['icon'] ?></i>
-                                <span><?= htmlspecialchars($category['name']) ?></span>
+                            <div class="col">
+                                <div class="card h-100 category-card bg-dark text-light" data-category-id="<?php echo $category['id']; ?>" data-category-name="<?php echo htmlspecialchars($category['name']); ?>">
+                                    <div class="card-body">
+                                        <h5 class="card-title">
+                                            <span class="category-icon"><?php echo $category['icon']; ?></span>
+                                            <?php echo htmlspecialchars($category['name']); ?>
+                                        </h5>
+                                    </div>
+                                </div>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -264,140 +315,325 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const storeButton = document.getElementById('storeButton');
-            const goodsButton = document.getElementById('goodsButton');
-            const categoryButton = document.getElementById('categoryButton');
-            
-            const storeGrid = document.getElementById('storeGrid');
-            const goodsGrid = document.getElementById('goodsGrid');
-            const categoryGrid = document.getElementById('categoryGrid');
+            let selectedItems = [];
+            const addGoodsButton = document.getElementById('addGoodsButton');
+            const registerGoodsButton = document.getElementById('registerGoodsButton');
 
-            const storeModal = new bootstrap.Modal(document.getElementById('storeModal'));
-            const goodsModal = new bootstrap.Modal(document.getElementById('goodsModal'));
-            const categoryModal = new bootstrap.Modal(document.getElementById('categoryModal'));
+            // 店舗選択時の処理
+            document.querySelectorAll('.store-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    const storeId = this.dataset.storeId;
+                    const storeName = this.dataset.storeName;
+                    document.getElementById('store_id').value = storeId;
+                    document.getElementById('selectedStoreName').textContent = storeName;
+                    
+                    // 商品関連ボタンを有効化
+                    addGoodsButton.disabled = false;
+                    registerGoodsButton.disabled = false;
+                    
+                    // 店舗に紐づく商品を取得
+                    loadStoreGoods(storeId);
+                    
+                    // モーダルを閉じる
+                    bootstrap.Modal.getInstance(document.getElementById('storeModal')).hide();
+                });
+            });
 
-            // 店舗選択
-            storeGrid.addEventListener('click', async function(e) {
-                const item = e.target.closest('.selection-item');
-                if (!item) return;
+            // 店舗登録
+            document.getElementById('saveStoreButton').addEventListener('click', function() {
+                const storeName = document.getElementById('storeName').value;
+                if (!storeName) {
+                    alert('店舗名を入力してください。');
+                    return;
+                }
 
-                if (item.dataset.id === 'new') {
-                    const storeName = prompt('店舗名を入力してください:');
-                    if (!storeName) return;
-
-                    try {
-                        const response = await fetch('api/add_store.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ name: storeName })
-                        });
-                        const data = await response.json();
-
-                        if (data.success) {
-                            document.getElementById('store_id').value = data.store_id;
-                            storeButton.textContent = storeName;
-                            goodsButton.disabled = false;
-                            storeModal.hide();
-                        } else {
-                            alert('店舗の登録に失敗しました: ' + data.error);
-                        }
-                    } catch (error) {
-                        console.error('店舗の登録に失敗しました:', error);
-                        alert('店舗の登録に失敗しました');
+                fetch('api/store.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: storeName
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
                     }
-                } else {
-                    document.getElementById('store_id').value = item.dataset.id;
-                    storeButton.textContent = item.dataset.name;
-                    goodsButton.disabled = false;
-                    storeModal.hide();
+                    
+                    // 店舗リストを更新
+                    const storeList = document.getElementById('storeList');
+                    const storeCard = document.createElement('div');
+                    storeCard.className = 'col';
+                    storeCard.innerHTML = `
+                        <div class="card h-100 store-card bg-dark text-light" data-store-id="${data.id}" data-store-name="${data.name}">
+                            <div class="card-body">
+                                <h5 class="card-title">${data.name}</h5>
+                            </div>
+                        </div>
+                    `;
+                    storeList.appendChild(storeCard);
 
-                    // 商品リストを読み込む
-                    try {
-                        const response = await fetch(`api/get_store_goods.php?store_id=${item.dataset.id}`);
-                        const goods = await response.json();
+                    // 新しく追加した店舗カードにイベントリスナーを設定
+                    const newStoreCard = storeCard.querySelector('.store-card');
+                    newStoreCard.addEventListener('click', function() {
+                        const storeId = this.dataset.storeId;
+                        const storeName = this.dataset.storeName;
+                        document.getElementById('store_id').value = storeId;
+                        document.getElementById('selectedStoreName').textContent = storeName;
                         
-                        goodsGrid.innerHTML = goods.map(g => `
-                            <div class="selection-item" data-id="${g.id}" data-name="${g.name}" data-price="${g.price}">
-                                <i class="bi bi-box"></i>
-                                <span>${g.name} (¥${g.price.toLocaleString()})</span>
-                            </div>
-                        `).join('') + `
-                            <div class="selection-item" data-id="new">
-                                <i class="bi bi-plus-lg"></i>
-                                <span>新規商品</span>
-                            </div>
-                        `;
-                    } catch (error) {
-                        console.error('商品リストの取得に失敗しました:', error);
-                    }
-                }
+                        // 商品関連ボタンを有効化
+                        addGoodsButton.disabled = false;
+                        registerGoodsButton.disabled = false;
+                        
+                        // 店舗に紐づく商品を取得
+                        loadStoreGoods(storeId);
+                        
+                        // モーダルを閉じる
+                        bootstrap.Modal.getInstance(document.getElementById('storeModal')).hide();
+                    });
+
+                    // モーダルを閉じる
+                    bootstrap.Modal.getInstance(document.getElementById('addStoreModal')).hide();
+                    document.getElementById('storeName').value = '';
+                })
+                .catch(error => {
+                    alert(error.message);
+                });
             });
 
-            // 商品選択
-            goodsGrid.addEventListener('click', async function(e) {
-                const item = e.target.closest('.selection-item');
-                if (!item) return;
+            // 商品登録
+            document.getElementById('saveGoodsButton').addEventListener('click', function() {
+                const goodsName = document.getElementById('goodsName').value;
+                const goodsPrice = document.getElementById('goodsPrice').value;
+                const storeId = document.getElementById('store_id').value;
 
-                if (item.dataset.id === 'new') {
-                    const goodsName = prompt('商品名を入力してください:');
-                    if (!goodsName) return;
+                if (!goodsName || !goodsPrice) {
+                    alert('商品名と価格を入力してください。');
+                    return;
+                }
 
-                    const price = prompt('価格を入力してください:');
-                    if (!price || isNaN(price)) return;
+                if (!storeId) {
+                    alert('先に店舗を選択してください。');
+                    return;
+                }
 
-                    try {
-                        const response = await fetch('api/add_goods.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                store_id: document.getElementById('store_id').value,
-                                name: goodsName,
-                                price: parseFloat(price)
-                            })
-                        });
-                        const data = await response.json();
+                fetch('api/goods.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        store_id: storeId,
+                        name: goodsName,
+                        price: parseInt(goodsPrice)
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw new Error(err.error) });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    // 商品リストを更新
+                    loadStoreGoods(storeId);
 
-                        if (data.success) {
-                            document.getElementById('goods_id').value = data.goods_id;
-                            goodsButton.textContent = `${goodsName} (¥${parseFloat(price).toLocaleString()})`;
-                            goodsModal.hide();
-                        } else {
-                            alert('商品の登録に失敗しました: ' + data.error);
+                    // モーダルを閉じる
+                    bootstrap.Modal.getInstance(document.getElementById('addGoodsModal')).hide();
+                    document.getElementById('goodsName').value = '';
+                    document.getElementById('goodsPrice').value = '';
+                })
+                .catch(error => {
+                    alert(error.message);
+                });
+            });
+
+            // 店舗の商品を読み込む
+            function loadStoreGoods(storeId) {
+                fetch(`api/goods.php?store_id=${storeId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(err => { throw new Error(err.error) });
                         }
-                    } catch (error) {
-                        console.error('商品の登録に失敗しました:', error);
-                        alert('商品の登録に失敗しました');
-                    }
-                } else {
-                    document.getElementById('goods_id').value = item.dataset.id;
-                    goodsButton.textContent = `${item.dataset.name} (¥${parseFloat(item.dataset.price).toLocaleString()})`;
-                    goodsModal.hide();
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+                        
+                        const goods = data.items || [];
+                        const goodsList = document.getElementById('goodsList');
+                        
+                        if (goods.length === 0) {
+                            goodsList.innerHTML = '<div class="col-12 text-center">商品が登録されていません</div>';
+                            return;
+                        }
+                        
+                        goodsList.innerHTML = goods.map(good => `
+                            <div class="col">
+                                <div class="card h-100 goods-card bg-dark text-light" 
+                                     data-goods-id="${good.id}"
+                                     data-goods-name="${good.name}"
+                                     data-goods-price="${good.price}">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${good.name}</h5>
+                                        <p class="card-text">¥${good.price.toLocaleString()}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+
+                        // 商品選択イベントを設定
+                        document.querySelectorAll('.goods-card').forEach(card => {
+                            card.addEventListener('click', function() {
+                                const goodsId = this.dataset.goodsId;
+                                const goodsName = this.dataset.goodsName;
+                                const goodsPrice = parseInt(this.dataset.goodsPrice);
+
+                                // 商品を選択リストに追加
+                                const item = {
+                                    goods_id: goodsId,
+                                    name: goodsName,
+                                    price: goodsPrice,
+                                    quantity: 1,
+                                    discount_amount: 0,
+                                    points_used: 0
+                                };
+                                selectedItems.push(item);
+                                updateSelectedItems();
+                                
+                                // モーダルを閉じる
+                                bootstrap.Modal.getInstance(document.getElementById('goodsModal')).hide();
+                            });
+                        });
+                    })
+                    .catch(error => {
+                        const goodsList = document.getElementById('goodsList');
+                        goodsList.innerHTML = `<div class="col-12 text-center text-danger">${error.message}</div>`;
+                    });
+            }
+
+            // 選択された商品の表示を更新
+            function updateSelectedItems() {
+                const selectedItemsContainer = document.getElementById('selectedItems');
+                let total = 0;
+
+                selectedItemsContainer.innerHTML = selectedItems.map((item, index) => {
+                    const subtotal = (item.price * item.quantity) - item.discount_amount - item.points_used;
+                    total += subtotal;
+                    return `
+                        <div class="card mb-2 bg-dark text-light">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h5 class="card-title mb-0">${item.name}</h5>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeItem(${index})">削除</button>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-md-3">
+                                        <label class="form-label">数量</label>
+                                        <input type="number" class="form-control form-control-sm bg-dark text-light" 
+                                               value="${item.quantity}" min="1" 
+                                               onchange="updateQuantity(${index}, this.value)">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">値引き</label>
+                                        <input type="number" class="form-control form-control-sm bg-dark text-light" 
+                                               value="${item.discount_amount}" min="0" 
+                                               onchange="updateDiscount(${index}, this.value)">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">ポイント</label>
+                                        <input type="number" class="form-control form-control-sm bg-dark text-light" 
+                                               value="${item.points_used}" min="0" 
+                                               onchange="updatePoints(${index}, this.value)">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">小計</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">¥</span>
+                                            <input type="text" class="form-control bg-dark text-light" 
+                                                   value="${subtotal.toLocaleString()}" readonly>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // 合計金額を更新
+                document.getElementById('totalAmount').value = total.toLocaleString();
+                
+                // 選択された商品を隠しフィールドに設定
+                document.getElementById('items').value = JSON.stringify(selectedItems);
+            }
+
+            // 商品の数量を増やす
+            window.increaseQuantity = function(index) {
+                selectedItems[index].quantity++;
+                updateSelectedItems();
+            };
+
+            // 商品の数量を減らす
+            window.decreaseQuantity = function(index) {
+                if (selectedItems[index].quantity > 1) {
+                    selectedItems[index].quantity--;
+                    updateSelectedItems();
                 }
-            });
+            };
+
+            // 商品の数量を更新
+            window.updateQuantity = function(index, value) {
+                const quantity = parseInt(value);
+                if (quantity > 0) {
+                    selectedItems[index].quantity = quantity;
+                    updateSelectedItems();
+                }
+            };
+
+            // 値引き額を更新
+            window.updateDiscount = function(index, value) {
+                selectedItems[index].discount_amount = parseInt(value) || 0;
+                updateSelectedItems();
+            };
+
+            // ポイント使用額を更新
+            window.updatePoints = function(index, value) {
+                selectedItems[index].points_used = parseInt(value) || 0;
+                updateSelectedItems();
+            };
+
+            // 商品を削除
+            window.removeItem = function(index) {
+                selectedItems.splice(index, 1);
+                updateSelectedItems();
+            };
 
             // カテゴリ選択
-            categoryGrid.addEventListener('click', function(e) {
-                const item = e.target.closest('.selection-item');
-                if (!item) return;
-
-                document.getElementById('category_id').value = item.dataset.id;
-                categoryButton.innerHTML = `${item.dataset.icon} ${item.dataset.name}`;
-                categoryModal.hide();
+            document.querySelectorAll('.category-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    const categoryId = this.dataset.categoryId;
+                    const categoryName = this.dataset.categoryName;
+                    document.getElementById('category_id').value = categoryId;
+                    document.getElementById('selectedCategory').textContent = categoryName;
+                    
+                    // モーダルを閉じる
+                    bootstrap.Modal.getInstance(document.getElementById('categoryModal')).hide();
+                });
             });
 
-            // フォームのバリデーション
+            // フォームの送信前にバリデーション
             document.getElementById('expenseForm').addEventListener('submit', function(e) {
-                const store_id = document.getElementById('store_id').value;
-                const goods_id = document.getElementById('goods_id').value;
-                const category_id = document.getElementById('category_id').value;
-
-                if (!store_id || !goods_id || !category_id) {
+                if (selectedItems.length === 0) {
                     e.preventDefault();
-                    alert('店舗、商品、カテゴリをすべて選択してください。');
+                    alert('商品を選択してください。');
                 }
             });
         });
