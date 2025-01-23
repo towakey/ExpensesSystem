@@ -1,0 +1,133 @@
+/* ダークテーマ */
+body.dark-theme {
+    background-color: #1a1a1a;
+    color: #ffffff;
+}
+
+/* カード */
+.card {
+    border: 1px solid #2d2d2d;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+/* テーブル */
+.table-dark {
+    background-color: #2d2d2d;
+    color: #ffffff;
+}
+
+.table-dark thead th {
+    background-color: #1a1a1a;
+    border-bottom: 2px solid #3d3d3d;
+}
+
+/* フローティングボタン */
+.floating-buttons {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 1000;
+}
+
+.floating-buttons .btn {
+    width: 3.5rem;
+    height: 3.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.floating-buttons .btn i {
+    font-size: 1.5rem;
+}
+
+/* モーダル */
+.modal-content {
+    border: 1px solid #2d2d2d;
+}
+
+.modal-header {
+    border-bottom: 1px solid #2d2d2d;
+}
+
+.modal-footer {
+    border-top: 1px solid #2d2d2d;
+}
+
+/* フォーム */
+.form-control, .form-select {
+    background-color: #2d2d2d;
+    border: 1px solid #3d3d3d;
+    color: #ffffff;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: #2d2d2d;
+    border-color: #0d6efd;
+    color: #ffffff;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ナビゲーションタブ */
+.nav-tabs {
+    border-bottom: 1px solid #2d2d2d;
+}
+
+.nav-tabs .nav-link {
+    color: #ffffff;
+    border: 1px solid transparent;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: #2d2d2d #2d2d2d #2d2d2d;
+}
+
+.nav-tabs .nav-link.active {
+    color: #ffffff;
+    background-color: #2d2d2d;
+    border-color: #2d2d2d #2d2d2d #2d2d2d;
+}
+
+/* アニメーション */
+@keyframes glow {
+    0% {
+        box-shadow: 0 0 5px rgba(13, 110, 253, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(13, 110, 253, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(13, 110, 253, 0.5);
+    }
+}
+
+.btn-primary {
+    animation: glow 2s infinite;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+    
+    .floating-buttons {
+        bottom: 1rem;
+        right: 1rem;
+    }
+    
+    .floating-buttons .btn {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+    
+    .card {
+        margin-bottom: 1rem;
+    }
+}
