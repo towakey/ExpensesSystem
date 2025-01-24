@@ -106,6 +106,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-top: 0.5rem;
             font-size: 0.875rem;
         }
+        .category-btn.selected {
+            background-color: var(--bs-primary);
+            border-color: var(--bs-primary);
+            color: white;
+        }
     </style>
 </head>
 <body class="dark-theme">
@@ -132,21 +137,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="mb-3">
                 <label class="form-label">カテゴリ <span class="text-danger">*</span></label>
-                <div class="row g-3">
+                <div class="d-flex flex-wrap gap-2">
                     <?php foreach ($categories as $category): ?>
-                    <div class="col-md-3 col-sm-4 col-6">
-                        <div class="card h-100 category-card bg-dark text-light" 
-                             data-category-id="<?= htmlspecialchars($category['id']) ?>"
-                             data-category-name="<?= htmlspecialchars($category['name']) ?>"
-                             style="cursor: pointer;">
-                            <div class="card-body">
-                                <h5 class="card-title"><?= htmlspecialchars($category['name']) ?></h5>
-                            </div>
-                        </div>
-                    </div>
+                    <button type="button" 
+                            class="btn btn-outline-secondary category-btn" 
+                            data-category-id="<?= htmlspecialchars($category['id']) ?>"
+                            data-category-name="<?= htmlspecialchars($category['name']) ?>">
+                        <?= htmlspecialchars($category['name']) ?>
+                    </button>
                     <?php endforeach; ?>
                 </div>
-                <div id="selectedCategoryName" class="mt-2 text-muted"></div>
+                <div id="selectedCategoryName" class="mt-2 text-muted small"></div>
                 <div class="error-message" id="categoryError"></div>
             </div>
 
@@ -657,29 +658,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             });
 
-            // カテゴリカードの選択処理
-            document.querySelectorAll('.category-card').forEach(card => {
-                card.addEventListener('click', function() {
+            // カテゴリボタンの選択処理
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
                     // 以前の選択を解除
-                    document.querySelectorAll('.category-card').forEach(c => {
-                        c.classList.remove('border-primary');
+                    document.querySelectorAll('.category-btn').forEach(b => {
+                        b.classList.remove('selected');
                     });
                     
                     // 新しい選択を適用
-                    this.classList.add('border-primary');
+                    this.classList.add('selected');
                     const categoryId = this.dataset.categoryId;
                     const categoryName = this.dataset.categoryName;
                     
                     document.getElementById('category_id').value = categoryId;
-                    document.getElementById('selectedCategoryName').textContent = categoryName;
-                    
-                    // 初期選択状態の設定
-                    if (categoryId === '<?= htmlspecialchars($formData['category_id']) ?>') {
-                        this.classList.add('border-primary');
-                        document.getElementById('selectedCategoryName').textContent = categoryName;
-                    }
+                    document.getElementById('selectedCategoryName').textContent = `選択中: ${categoryName}`;
                 });
             });
+
+            // カテゴリの初期選択状態の設定
+            const initialCategoryId = '<?= htmlspecialchars($formData['category_id']) ?>';
+            if (initialCategoryId) {
+                const initialCategoryBtn = document.querySelector(`.category-btn[data-category-id="${initialCategoryId}"]`);
+                if (initialCategoryBtn) {
+                    initialCategoryBtn.classList.add('selected');
+                    document.getElementById('selectedCategoryName').textContent = `選択中: ${initialCategoryBtn.dataset.categoryName}`;
+                }
+            }
         });
     </script>
 </body>
