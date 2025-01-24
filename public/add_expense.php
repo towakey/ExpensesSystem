@@ -132,12 +132,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="mb-3">
                 <label class="form-label">カテゴリ <span class="text-danger">*</span></label>
-                <div class="d-flex mb-2 align-items-center">
-                    <div id="selectedCategory" class="me-2">選択してください</div>
-                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#categoryModal">
-                        選択
-                    </button>
+                <div class="row g-3">
+                    <?php foreach ($categories as $category): ?>
+                    <div class="col-md-3 col-sm-4 col-6">
+                        <div class="card h-100 category-card bg-dark text-light" 
+                             data-category-id="<?= htmlspecialchars($category['id']) ?>"
+                             data-category-name="<?= htmlspecialchars($category['name']) ?>"
+                             style="cursor: pointer;">
+                            <div class="card-body">
+                                <h5 class="card-title"><?= htmlspecialchars($category['name']) ?></h5>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
                 </div>
+                <div id="selectedCategoryName" class="mt-2 text-muted"></div>
                 <div class="error-message" id="categoryError"></div>
             </div>
 
@@ -259,34 +268,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
                     <button type="button" class="btn btn-primary" id="saveGoodsButton">登録</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- カテゴリ選択モーダル -->
-    <div class="modal fade" id="categoryModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content bg-dark text-light">
-                <div class="modal-header">
-                    <h5 class="modal-title">カテゴリを選択</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row row-cols-2 row-cols-md-3 g-3">
-                        <?php foreach ($categories as $category): ?>
-                        <div class="col">
-                            <div class="card h-100 category-card bg-dark text-light" data-category-id="<?php echo $category['id']; ?>" data-category-name="<?php echo htmlspecialchars($category['name']); ?>">
-                                <div class="card-body">
-                                    <h5 class="card-title">
-                                        <span class="category-icon"><?php echo $category['icon']; ?></span>
-                                        <?php echo htmlspecialchars($category['name']); ?>
-                                    </h5>
-                                </div>
-                            </div>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
                 </div>
             </div>
         </div>
@@ -738,16 +719,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             });
 
-            // カテゴリ選択
+            // カテゴリカードの選択処理
             document.querySelectorAll('.category-card').forEach(card => {
                 card.addEventListener('click', function() {
+                    // 以前の選択を解除
+                    document.querySelectorAll('.category-card').forEach(c => {
+                        c.classList.remove('border-primary');
+                    });
+                    
+                    // 新しい選択を適用
+                    this.classList.add('border-primary');
                     const categoryId = this.dataset.categoryId;
                     const categoryName = this.dataset.categoryName;
-                    document.getElementById('category_id').value = categoryId;
-                    document.getElementById('selectedCategory').textContent = categoryName;
                     
-                    // モーダルを閉じる
-                    bootstrap.Modal.getInstance(document.getElementById('categoryModal')).hide();
+                    document.getElementById('category_id').value = categoryId;
+                    document.getElementById('selectedCategoryName').textContent = categoryName;
+                    
+                    // 初期選択状態の設定
+                    if (categoryId === '<?= htmlspecialchars($formData['category_id']) ?>') {
+                        this.classList.add('border-primary');
+                        document.getElementById('selectedCategoryName').textContent = categoryName;
+                    }
                 });
             });
         });
