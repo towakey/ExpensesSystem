@@ -180,15 +180,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="mb-3">
                 <label class="form-label">商品 <span class="text-danger">*</span></label>
-                <div class="d-flex mb-2">
-                    <button type="button" id="addGoodsButton" class="btn btn-outline-primary btn-sm me-2" 
-                            data-bs-toggle="modal" data-bs-target="#goodsModal" disabled>
-                        選択
-                    </button>
-                    <button type="button" id="registerGoodsButton" class="btn btn-outline-success btn-sm" 
-                            data-bs-toggle="modal" data-bs-target="#addGoodsModal" disabled>
-                        新規登録
-                    </button>
+                <button type="button" id="registerGoodsButton" class="btn btn-outline-success btn-sm mb-2" 
+                        data-bs-toggle="modal" data-bs-target="#addGoodsModal" disabled>
+                    新規登録
+                </button>
+                <div id="goodsList" class="row g-3">
+                    <!-- 商品一覧がここに動的に表示されます -->
                 </div>
                 <div id="selectedItems"></div>
                 <div class="error-message" id="itemsError"></div>
@@ -237,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="goodsList" class="row row-cols-1 row-cols-md-3 g-4">
+                    <div id="goodsListModal" class="row row-cols-1 row-cols-md-3 g-4">
                         <!-- 商品リストがここに動的に追加されます -->
                     </div>
                 </div>
@@ -277,9 +274,119 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             let selectedItems = <?= $formData['items'] ?>;
-            const addGoodsButton = document.getElementById('addGoodsButton');
             const registerGoodsButton = document.getElementById('registerGoodsButton');
             const form = document.getElementById('expenseForm');
+
+            // 商品一覧を取得して表示する関数
+            async function loadGoods(storeId) {
+                try {
+                    const response = await fetch(`api/goods.php?store_id=${storeId}`);
+                    if (!response.ok) {
+                        throw new Error('商品の取得に失敗しました');
+                    }
+                    const result = await response.json();
+                    
+                    if (result.error) {
+                        throw new Error(result.error);
+                    }
+                    
+                    const data = result.items || [];
+                    const goodsList = document.getElementById('goodsList');
+                    goodsList.innerHTML = ''; // 既存の商品一覧をクリア
+                    
+                    if (data.length === 0) {
+                        goodsList.innerHTML = '<div class="col-12 text-center text-muted">商品が登録されていません</div>';
+                        return;
+                    }
+                    
+                    data.forEach(goods => {
+                        const col = document.createElement('div');
+                        col.className = 'col-md-3 col-sm-4 col-6';
+                        
+                        col.innerHTML = `
+                            <div class="card h-100 goods-card bg-dark text-light" 
+                                 data-goods-id="${goods.id}"
+                                 data-goods-name="${goods.name}"
+                                 data-goods-price="${goods.price}"
+                                 style="cursor: pointer;">
+                                <div class="card-body">
+                                    <h5 class="card-title">${goods.name}</h5>
+                                    <p class="card-text">¥${parseInt(goods.price).toLocaleString()}</p>
+                                </div>
+                            </div>
+                        `;
+                        
+                        goodsList.appendChild(col);
+                    });
+                    
+                    // 商品カードのクリックイベントを設定
+                    document.querySelectorAll('.goods-card').forEach(card => {
+                        card.addEventListener('click', function() {
+                            const goodsId = this.dataset.goodsId;
+                            const goodsName = this.dataset.goodsName;
+                            const goodsPrice = parseInt(this.dataset.goodsPrice);
+                            
+                            // 既に選択されている商品かチェック
+                            const existingItem = selectedItems.find(item => 
+                                item.goods_id === goodsId && 
+                                item.store_id === document.getElementById('store_id').value
+                            );
+                            
+                            if (!existingItem) {
+                                selectedItems.push({
+                                    goods_id: goodsId,
+                                    name: goodsName,
+                                    price: goodsPrice,
+                                    quantity: 1,
+                                    discount_amount: 0,
+                                    store_id: document.getElementById('store_id').value
+                                });
+                                updateSelectedItems();
+                            }
+                        });
+                    });
+                } catch (error) {
+                    console.error('商品の取得に失敗しました:', error);
+                    const goodsList = document.getElementById('goodsList');
+                    goodsList.innerHTML = `<div class="col-12 text-center text-danger">商品の取得に失敗しました: ${error.message}</div>`;
+                }
+            }
+
+            // 店舗カードの選択処理
+            document.querySelectorAll('.store-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    // 以前の選択を解除
+                    document.querySelectorAll('.store-card').forEach(c => {
+                        c.classList.remove('border-primary');
+                    });
+                    
+                    // 新しい選択を適用
+                    this.classList.add('border-primary');
+                    const storeId = this.dataset.storeId;
+                    const storeName = this.dataset.storeName;
+                    
+                    document.getElementById('store_id').value = storeId;
+                    document.getElementById('selectedStoreName').textContent = storeName;
+                    
+                    // 商品登録ボタンを有効化
+                    registerGoodsButton.disabled = false;
+                    
+                    // 商品一覧を読み込む
+                    loadGoods(storeId);
+                });
+            });
+
+            // 初期選択状態の設定
+            const initialStoreId = '<?= htmlspecialchars($formData['store_id']) ?>';
+            if (initialStoreId) {
+                const initialStoreCard = document.querySelector(`.store-card[data-store-id="${initialStoreId}"]`);
+                if (initialStoreCard) {
+                    initialStoreCard.classList.add('border-primary');
+                    document.getElementById('selectedStoreName').textContent = initialStoreCard.dataset.storeName;
+                    registerGoodsButton.disabled = false;
+                    loadGoods(initialStoreId);
+                }
+            }
 
             // フォーム送信前の処理
             form.addEventListener('submit', function(e) {
@@ -300,58 +407,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     window.scrollTo(0, 0);
                 }
             });
-
-            // 店舗選択処理
-            function selectStore(storeId, storeName) {
-                console.log('Selecting store:', { id: storeId, name: storeName });
-                
-                // store_idの設定
-                const storeIdInput = document.getElementById('store_id');
-                storeIdInput.value = storeId;
-                console.log('Updated store_id value:', storeIdInput.value);
-                
-                // 選択中の店舗名を表示
-                document.getElementById('selectedStoreName').textContent = `選択中: ${storeName}`;
-                
-                // エラーメッセージをクリア
-                document.getElementById('storeError').textContent = '';
-                
-                // 商品関連ボタンを有効化
-                addGoodsButton.disabled = false;
-                registerGoodsButton.disabled = false;
-                
-                // 店舗に紐づく商品を取得
-                loadStoreGoods(storeId);
-
-                // 選択された店舗カードをハイライト
-                document.querySelectorAll('.store-card').forEach(card => {
-                    card.classList.remove('border-primary', 'border-2');
-                });
-                const selectedCard = document.querySelector(`.store-card[data-store-id="${storeId}"]`);
-                if (selectedCard) {
-                    selectedCard.classList.add('border-primary', 'border-2');
-                }
-            }
-
-            // 店舗カードのイベントリスナー設定
-            document.querySelectorAll('.store-card').forEach(card => {
-                card.addEventListener('click', function() {
-                    const storeId = this.dataset.storeId;
-                    const storeName = this.dataset.storeName;
-                    if (storeId && storeName) {
-                        selectStore(storeId, storeName);
-                    }
-                });
-            });
-
-            // 保存された値の復元
-            if (document.getElementById('store_id').value) {
-                const storeId = document.getElementById('store_id').value;
-                const storeCard = document.querySelector(`.store-card[data-store-id="${storeId}"]`);
-                if (storeCard) {
-                    selectStore(storeId, storeCard.dataset.storeName);
-                }
-            }
 
             // エラーメッセージをクリア
             function clearErrors() {
@@ -395,99 +450,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return isValid;
             }
 
-            // 選択された商品の表示を更新
+            // 選択された商品を更新する関数
             function updateSelectedItems() {
                 const selectedItemsContainer = document.getElementById('selectedItems');
                 const itemsInput = document.getElementById('items');
-
+                
                 if (!selectedItemsContainer || !itemsInput) {
-                    console.error('Required elements not found');
                     return;
                 }
-
-                // 選択商品の表示をクリア
-                selectedItemsContainer.innerHTML = '';
-
+                
+                // 選択された商品がない場合
                 if (selectedItems.length === 0) {
                     selectedItemsContainer.innerHTML = '<div class="text-muted">商品が選択されていません</div>';
                     itemsInput.value = '[]';
                     return;
                 }
-
-                // 選択商品一覧を表示
-                const table = document.createElement('table');
-                table.className = 'table table-dark table-hover mt-2';
-                table.innerHTML = `
-                    <thead>
-                        <tr>
-                            <th>商品名</th>
-                            <th>価格</th>
-                            <th>数量</th>
-                            <th>割引</th>
-                            <th>ポイント</th>
-                            <th>小計</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${selectedItems.map((item, index) => `
-                            <tr>
-                                <td>${item.name}</td>
-                                <td>¥${item.price.toLocaleString()}</td>
-                                <td>
-                                    <input type="number" class="form-control form-control-sm bg-dark text-light" 
-                                           value="${item.quantity}" min="1" 
-                                           onchange="updateItemQuantity(${index}, this.value)">
-                                </td>
-                                <td>
-                                    <input type="number" class="form-control form-control-sm bg-dark text-light" 
-                                           value="${item.discount_amount}" min="0" 
-                                           onchange="updateItemDiscount(${index}, this.value)">
-                                </td>
-                                <td>
-                                    <input type="number" class="form-control form-control-sm bg-dark text-light" 
-                                           value="${item.points_used}" min="0" 
-                                           onchange="updateItemPoints(${index}, this.value)">
-                                </td>
-                                <td>¥${calculateSubtotal(item).toLocaleString()}</td>
-                                <td>
-                                    <button type="button" class="btn btn-danger btn-sm" 
-                                            onclick="removeItem(${index})">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <th colspan="5" class="text-end">合計</th>
-                            <th>¥${calculateTotal().toLocaleString()}</th>
-                            <th></th>
-                        </tr>
-                    </tfoot>
-                `;
-
-                selectedItemsContainer.appendChild(table);
                 
-                // hidden input を更新
-                try {
-                    itemsInput.value = JSON.stringify(selectedItems);
-                } catch (e) {
-                    console.error('Error stringifying selectedItems:', e);
-                    itemsInput.value = '[]';
-                }
-            }
-
-            // 商品の小計を計算
-            function calculateSubtotal(item) {
-                const subtotal = item.price * item.quantity;
-                return subtotal - item.discount_amount - item.points_used;
-            }
-
-            // 合計金額を計算
-            function calculateTotal() {
-                return selectedItems.reduce((total, item) => total + calculateSubtotal(item), 0);
+                // 選択された商品一覧を表示
+                let html = '<div class="table-responsive"><table class="table table-dark">';
+                html += '<thead><tr><th>商品名</th><th>単価</th><th>数量</th><th>値引き</th><th>小計</th><th></th></tr></thead><tbody>';
+                
+                let total = 0;
+                selectedItems.forEach((item, index) => {
+                    const subtotal = (item.price * item.quantity) - (item.discount_amount || 0);
+                    total += subtotal;
+                    
+                    html += `
+                        <tr>
+                            <td>${item.name}</td>
+                            <td>¥${parseInt(item.price).toLocaleString()}</td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm bg-dark text-light" 
+                                       value="${item.quantity}" min="1" 
+                                       onchange="updateItemQuantity(${index}, this.value)"
+                                       style="width: 80px;">
+                            </td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm bg-dark text-light" 
+                                       value="${item.discount_amount || 0}" min="0" 
+                                       onchange="updateItemDiscount(${index}, this.value)"
+                                       style="width: 100px;">
+                            </td>
+                            <td>¥${subtotal.toLocaleString()}</td>
+                            <td>
+                                <button type="button" class="btn btn-danger btn-sm" 
+                                        onclick="removeItem(${index})">削除</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                    <tr>
+                        <td colspan="4" class="text-end"><strong>合計</strong></td>
+                        <td colspan="2"><strong>¥${total.toLocaleString()}</strong></td>
+                    </tr>
+                    </tbody></table></div>`;
+                
+                selectedItemsContainer.innerHTML = html;
+                itemsInput.value = JSON.stringify(selectedItems);
             }
 
             // 商品の数量を更新
@@ -498,18 +519,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // 商品の割引を更新
+            // 商品の値引きを更新
             function updateItemDiscount(index, value) {
                 if (selectedItems[index]) {
                     selectedItems[index].discount_amount = parseInt(value) || 0;
-                    updateSelectedItems();
-                }
-            }
-
-            // 商品のポイント使用を更新
-            function updateItemPoints(index, value) {
-                if (selectedItems[index]) {
-                    selectedItems[index].points_used = parseInt(value) || 0;
                     updateSelectedItems();
                 }
             }
@@ -518,81 +531,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             function removeItem(index) {
                 selectedItems.splice(index, 1);
                 updateSelectedItems();
-            }
-
-            // 店舗の商品を読み込む
-            function loadStoreGoods(storeId) {
-                fetch(`api/goods.php?store_id=${storeId}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.json().then(err => { throw new Error(err.error) });
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.error) {
-                            throw new Error(data.error);
-                        }
-                        
-                        const goods = data.items || [];
-                        const goodsList = document.getElementById('goodsList');
-                        
-                        if (goods.length === 0) {
-                            goodsList.innerHTML = '<div class="col-12 text-center">商品が登録されていません</div>';
-                            return;
-                        }
-                        
-                        goodsList.innerHTML = goods.map(good => `
-                            <div class="col">
-                                <div class="card h-100 goods-card bg-dark text-light" 
-                                     data-goods-id="${good.id}"
-                                     data-goods-name="${good.name}"
-                                     data-goods-price="${good.price}">
-                                    <div class="card-body">
-                                        <h5 class="card-title">${good.name}</h5>
-                                        <p class="card-text">¥${good.price.toLocaleString()}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('');
-
-                        // 商品選択イベントを設定
-                        document.querySelectorAll('.goods-card').forEach(card => {
-                            card.addEventListener('click', function() {
-                                const goodsId = this.dataset.goodsId;
-                                const goodsName = this.dataset.goodsName;
-                                const goodsPrice = parseInt(this.dataset.goodsPrice);
-
-                                // 商品を選択リストに追加
-                                const item = {
-                                    goods_id: goodsId,
-                                    name: goodsName,
-                                    price: goodsPrice,
-                                    quantity: 1,
-                                    discount_amount: 0,
-                                    points_used: 0
-                                };
-                                
-                                // 配列が未定義の場合は初期化
-                                if (!Array.isArray(selectedItems)) {
-                                    selectedItems = [];
-                                }
-                                
-                                selectedItems.push(item);
-                                updateSelectedItems();
-                                
-                                // モーダルを閉じる
-                                const modal = bootstrap.Modal.getInstance(document.getElementById('goodsModal'));
-                                if (modal) {
-                                    modal.hide();
-                                }
-                            });
-                        });
-                    })
-                    .catch(error => {
-                        const goodsList = document.getElementById('goodsList');
-                        goodsList.innerHTML = `<div class="col-12 text-center text-danger">${error.message}</div>`;
-                    });
             }
 
             // 店舗登録
@@ -707,7 +645,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     
                     // 商品リストを更新
-                    loadStoreGoods(storeId);
+                    loadGoods(storeId);
 
                     // モーダルを閉じる
                     bootstrap.Modal.getInstance(document.getElementById('addGoodsModal')).hide();
