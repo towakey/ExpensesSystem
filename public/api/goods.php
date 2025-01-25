@@ -15,7 +15,28 @@ if (!$auth->isLoggedIn()) {
     exit;
 }
 
-// POSTリクエストの場合は商品を登録
+$store = new Store();
+$userId = $auth->getCurrentUserId();
+
+// DELETE: 商品削除
+if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    if (!isset($_GET['id'])) {
+        http_response_code(400);
+        echo json_encode(['error' => '商品IDが必要です']);
+        exit;
+    }
+
+    try {
+        $store->deleteGoods($_GET['id'], $userId);
+        echo json_encode(['success' => true]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['error' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// POST: 商品登録
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
     
@@ -28,12 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
-        $store = new Store();
         $id = $store->addGoods(
             $data['name'],
             $data['price'],
             $data['store_id'],
-            $_SESSION['user_id']
+            $userId
         );
         echo json_encode([
             'id' => $id,
@@ -47,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// GETリクエストの場合は商品一覧を取得
+// GET: 商品一覧取得
 if (!isset($_GET['store_id'])) {
     http_response_code(400);
     echo json_encode(['error' => '店舗IDが必要です']);
@@ -55,22 +75,9 @@ if (!isset($_GET['store_id'])) {
 }
 
 try {
-    $store = new Store();
-    $goods = $store->getStoreGoods($_GET['store_id'], $_SESSION['user_id']);
-    
-    // デバッグ情報
-    error_log('Store ID: ' . $_GET['store_id']);
-    error_log('User ID: ' . $_SESSION['user_id']);
-    error_log('Goods: ' . print_r($goods, true));
-    
-    if (!is_array($goods)) {
-        throw new Exception('商品データの取得に失敗しました');
-    }
-    
+    $goods = $store->getStoreGoods($_GET['store_id'], $userId);
     echo json_encode(['items' => $goods]);
 } catch (Exception $e) {
-    error_log($e->getMessage());
-    error_log($e->getTraceAsString());
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);
     exit;

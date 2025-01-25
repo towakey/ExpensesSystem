@@ -27,6 +27,17 @@ class Transaction {
             );
 
             foreach ($items as $item) {
+                // 商品情報を取得（削除された商品の場合のため）
+                $goodsName = null;
+                if ($item['goods_id']) {
+                    $stmtGoods = $this->db->prepare("SELECT name FROM goods WHERE id = ?");
+                    $stmtGoods->execute([$item['goods_id']]);
+                    $goods = $stmtGoods->fetch(\PDO::FETCH_ASSOC);
+                    if ($goods) {
+                        $goodsName = $goods['name'];
+                    }
+                }
+
                 $stmt->execute([
                     $expenseId,
                     $item['goods_id'],
@@ -35,6 +46,10 @@ class Transaction {
                     $item['discount_amount'] ?? 0,
                     $item['points_used'] ?? 0
                 ]);
+
+                // 明細に商品名を追加
+                $stmtUpdate = $this->db->prepare("UPDATE expense_items SET goods_name = ? WHERE id = ?");
+                $stmtUpdate->execute([$goodsName, $this->db->lastInsertId()]);
             }
 
             $this->db->commit();
@@ -65,10 +80,10 @@ class Transaction {
                     e.id,
                     e.date,
                     'expense' as type,
-                    s.name as store_name,
+                    COALESCE(s.name, '削除された店舗') as store_name,
                     c.name as category_name,
                     c.icon as category_icon,
-                    g.name as goods_name,
+                    COALESCE(g.name, ei.goods_name, '削除された商品') as goods_name,
                     ei.price,
                     ei.quantity,
                     ei.discount_amount,
@@ -76,10 +91,10 @@ class Transaction {
                     e.memo,
                     NULL as income_source_name
                 FROM expenses e
-                JOIN stores s ON e.store_id = s.id
                 JOIN categories c ON e.category_id = c.id
                 JOIN expense_items ei ON e.id = ei.expense_id
-                JOIN goods g ON ei.goods_id = g.id
+                LEFT JOIN goods g ON ei.goods_id = g.id
+                LEFT JOIN stores s ON e.store_id = s.id
                 WHERE e.user_id = ? 
                 AND strftime('%Y', e.date) = ?
                 AND strftime('%m', e.date) = ?
