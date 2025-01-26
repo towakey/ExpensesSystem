@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS income (
 );
 
 -- 初期データ: カテゴリ
-INSERT OR IGNORE INTO categories (name, icon) VALUES
+INSERT INTO categories (name, icon) VALUES
 ('食費', '🍚'),
 ('日用品', '🧴'),
 ('交通費', '🚃'),
@@ -102,7 +102,7 @@ INSERT OR IGNORE INTO categories (name, icon) VALUES
 ('その他', '📦');
 
 -- 初期データ: 収入源
-INSERT OR IGNORE INTO income_sources (name) VALUES
+INSERT INTO income_sources (name) VALUES
 ('給与'),
 ('ボーナス'),
 ('副業'),
