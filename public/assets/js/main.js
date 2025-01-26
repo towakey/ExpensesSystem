@@ -1,10 +1,12 @@
 document.addEventListener('DOMContentLoaded', function() {
     // カテゴリ別支出グラフの初期化
-    const ctx = document.getElementById('categoryChart').getContext('2d');
-    const categoryData = JSON.parse(document.getElementById('categoryData').textContent);
+    const ctx = document.getElementById('categoryChart');
+    if (!ctx) return;  // チャートキャンバスが存在しない場合は終了
     
-    if (categoryData && categoryData.length > 0) {
-        new Chart(ctx, {
+    const ctxContext = ctx.getContext('2d');
+    const categoryData = JSON.parse(document.getElementById('categoryData').textContent);
+    if (typeof categoryData !== 'undefined' && categoryData && categoryData.length > 0) {
+        new Chart(ctxContext, {
             type: 'doughnut',
             data: {
                 labels: categoryData.map(item => item.category_name),
