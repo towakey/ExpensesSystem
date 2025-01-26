@@ -1,16 +1,23 @@
 <?php
-require_once __DIR__ . '/../src/Database.php';
-require_once __DIR__ . '/../src/Auth.php';
-require_once __DIR__ . '/../src/Transaction.php';
-require_once __DIR__ . '/../src/Store.php';
+// 開発環境でのエラー表示設定
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+session_start();
 
 use ExpensesSystem\Auth;
 use ExpensesSystem\Transaction;
-use ExpensesSystem\Store;
-use ExpensesSystem\Database;
+
+// SQLiteエラーをより詳細に表示
+$db = ExpensesSystem\Database::getInstance()->getConnection();
+$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $auth = new Auth();
 
+// ログインしていない場合はログインページにリダイレクト
 if (!$auth->isLoggedIn()) {
     header('Location: login.php');
     exit;
@@ -23,9 +30,13 @@ $transaction = new Transaction();
 $year = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
 $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('m');
 
-// データ取得
-$monthlyTransactions = $transaction->getMonthlyTransactions($userId, $year, $month);
-$monthlySummary = $transaction->getMonthlySummary($userId, $year, $month);
+// 取引履歴を取得
+$transactions = $transaction->getMonthlyTransactions($userId, $year, $month);
+
+// 月次サマリーを取得
+$summary = $transaction->getMonthlySummary($userId, $year, $month);
+
+// カテゴリ別サマリーを取得
 $categorySummary = $transaction->getCategorySummary($userId, $year, $month);
 
 // カテゴリデータをJavaScript用にエンコード
@@ -115,7 +126,7 @@ $categoryData = json_encode($categorySummary);
                 <div class="card bg-dark text-light h-100">
                     <div class="card-body">
                         <h5 class="card-title">収入</h5>
-                        <p class="card-text fs-4">¥<?= number_format($monthlySummary['total_income']) ?></p>
+                        <p class="card-text fs-4">¥<?= number_format($summary['total_income']) ?></p>
                     </div>
                 </div>
             </div>
@@ -123,7 +134,7 @@ $categoryData = json_encode($categorySummary);
                 <div class="card bg-dark text-light h-100">
                     <div class="card-body">
                         <h5 class="card-title">支出</h5>
-                        <p class="card-text fs-4">¥<?= number_format($monthlySummary['total_expense']) ?></p>
+                        <p class="card-text fs-4">¥<?= number_format($summary['total_expense']) ?></p>
                     </div>
                 </div>
             </div>
@@ -131,7 +142,7 @@ $categoryData = json_encode($categorySummary);
                 <div class="card bg-dark text-light h-100">
                     <div class="card-body">
                         <h5 class="card-title">収支</h5>
-                        <p class="card-text fs-4">¥<?= number_format($monthlySummary['total_income'] - $monthlySummary['total_expense']) ?></p>
+                        <p class="card-text fs-4">¥<?= number_format($summary['total_income'] - $summary['total_expense']) ?></p>
                     </div>
                 </div>
             </div>
@@ -165,7 +176,7 @@ $categoryData = json_encode($categorySummary);
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($monthlyTransactions as $transaction): ?>
+                                    <?php foreach ($transactions as $transaction): ?>
                                         <?php
                                         // 金額を計算
                                         $amount = $transaction['type'] === 'expense' 

@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS expenses (
 CREATE TABLE IF NOT EXISTS expense_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     expense_id INTEGER NOT NULL,
-    goods_id INTEGER NOT NULL,
+    goods_id INTEGER,
+    goods_name TEXT,
     quantity INTEGER NOT NULL DEFAULT 1,
     price INTEGER NOT NULL,
     discount_amount INTEGER NOT NULL DEFAULT 0,
