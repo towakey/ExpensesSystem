@@ -258,8 +258,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="text" class="form-control bg-dark text-light" id="goodsName" required>
                         </div>
                         <div class="mb-3">
-                            <label for="goodsPrice" class="form-label">価格</label>
+                            <label for="goodsPrice" class="form-label">税抜価格</label>
                             <input type="number" class="form-control bg-dark text-light" id="goodsPrice" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="taxRate" class="form-label">消費税設定</label>
+                            <select class="form-control bg-dark text-light" id="taxRate" required>
+                                <option value="8">8%</option>
+                                <option value="10">10%</option>
+                                <option value="0">非課税</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">税込価格</label>
+                            <div class="form-control bg-dark text-light" id="taxIncludedPrice">0円</div>
                         </div>
                     </form>
                 </div>
@@ -534,6 +546,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 updateSelectedItems();
             }
 
+            // 税込価格を計算して表示する関数
+            function updateTaxIncludedPrice() {
+                const price = parseInt(document.getElementById('goodsPrice').value) || 0;
+                const taxRate = parseInt(document.getElementById('taxRate').value);
+                const taxIncludedPrice = taxRate === 0 ? price : Math.floor(price * (1 + taxRate / 100));
+                document.getElementById('taxIncludedPrice').textContent = `${taxIncludedPrice.toLocaleString()}円`;
+                return taxIncludedPrice;
+            }
+
+            // 価格または税率が変更されたときに税込価格を更新
+            document.getElementById('goodsPrice').addEventListener('input', updateTaxIncludedPrice);
+            document.getElementById('taxRate').addEventListener('change', updateTaxIncludedPrice);
+
             // 店舗登録
             document.getElementById('saveStoreButton').addEventListener('click', function() {
                 const storeName = document.getElementById('storeName').value;
@@ -611,6 +636,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('saveGoodsButton').addEventListener('click', function() {
                 const goodsName = document.getElementById('goodsName').value;
                 const goodsPrice = document.getElementById('goodsPrice').value;
+                const taxRate = document.getElementById('taxRate').value;
                 const storeId = document.getElementById('store_id').value;
 
                 if (!goodsName || !goodsPrice) {
@@ -623,6 +649,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     return;
                 }
 
+                // 消費税情報を商品名に追加
+                const taxInfo = taxRate === '0' ? '（非課税）' : `（消費税${taxRate}%）`;
+                const fullGoodsName = `${goodsName}${taxInfo}`;
+
+                // 税込価格を計算
+                const taxIncludedPrice = updateTaxIncludedPrice();
+
                 fetch('api/goods.php', {
                     method: 'POST',
                     headers: {
@@ -630,8 +663,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     },
                     body: JSON.stringify({
                         store_id: storeId,
-                        name: goodsName,
-                        price: parseInt(goodsPrice)
+                        name: fullGoodsName,
+                        price: taxIncludedPrice // 税込価格を登録
                     })
                 })
                 .then(response => {
